@@ -15,47 +15,59 @@ query = "Julia"
 items_per_page = 50
 ships_to = "US_CON"
 item_region = "US"
-conditions = ["mint", "new"]
-sort = "price_with_sale%7Casc"
+conditions = "new"
+product_type = "effects-and-pedals"
+sort = "price_with_sale|asc"
+page = 1
+last_page = 10
 
-url = url = 'https://api.reverb.com/api/listings/?'\
-                'query={}&'\
-                'per_page={}&'\
-                'ships_to={}&'\
-                'condition={}&'\
-                'condition={}&'\
-                'item_region={}'.format(query, items_per_page, ships_to,
-                                      conditions[1], conditions[0], item_region)
-response = requests.get(url, headers=headers);
+listings = []
 
-if response.status_code != 200:
-    print(response.text)
-else:
-    data = response.json();
-    if not getattr(response, 'from_cache', False):
-        time.sleep(0.15)
+for page in range (1, last_page + 1):
+    url = 'https://api.reverb.com/api/listings/?'\
+                    'query={}&'\
+                    'per_page={}&'\
+                    'ships_to={}&'\
+                    'product_type={}&'\
+                    'condition={}&'\
+                    'item_region={}&'\
+                    'sort={}&'\
+                    'page={}'.format(query, items_per_page, ships_to, product_type,
+                                        conditions, item_region, sort, page)
+                                        
+    response = requests.get(url, headers=headers);
 
-    # Define the CSV file structure
-    csv_file = "reverb_listings.csv"
-    csv_columns = ["title", "price", "currency", "condition", "shipping", "region", "item_url"]
+    if response.status_code != 200:
+        print(response.text)
+    else:
+        data = response.json();
+        listings.extend(data['listings'])
+        if not getattr(response, 'from_cache', False):
+            time.sleep(0.15)
 
-    # Open the CSV file and write the data
-    try:
-        with open(csv_file, mode='w', newline='', encoding='utf-8') as file:
-            writer = csv.DictWriter(file, fieldnames=csv_columns)
-            writer.writeheader()
+# Define the CSV file structure
+csv_file = "reverb_listings.csv"
+csv_columns = ["title", "price", "currency", "condition", "shipping", "region", "item_url"]
 
-            for item in data['listings']:
-                writer.writerow({
-                    "title": item.get("title"),
-                    "price": item.get("price", {}).get("amount"),
-                    "currency": item.get("price", {}).get("currency"),
-                    "condition": item.get("condition"),
-                    "shipping": item.get("shipping", {}).get("cost", {}).get("amount"),
-                    "region": item.get("item_region"),
-                    "item_url": item.get("_links", {}).get("web", {}).get("href")
-                })
+# Open the CSV file and write the data
+listings.sort(key=lambda x: x.get("price", {}).get("amount", float('inf')))
 
-        print(f"Data has been written to {csv_file}")
-    except IOError as e:
-        print(f"I/O error: {e}")
+try:
+    with open(csv_file, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.DictWriter(file, fieldnames=csv_columns)
+        writer.writeheader()
+
+        for item in listings:
+            writer.writerow({
+                "title": item.get("title"),
+                "price": item.get("price", {}).get("amount"),
+                "currency": item.get("price", {}).get("currency"),
+                "condition": item.get("condition"),
+                "shipping": item.get("shipping", {}).get("cost", {}).get("amount"),
+                "region": item.get("item_region"),
+                "item_url": item.get("_links", {}).get("web", {}).get("href")
+            })
+
+    print(f"Data has been written to {csv_file}")
+except IOError as e:
+    print(f"I/O error: {e}")
